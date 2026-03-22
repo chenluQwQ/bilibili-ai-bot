@@ -1,0 +1,24 @@
+{
+  "SESSDATA": "你的B站SESSDATA",
+  "BILI_JCT": "你的B站bili_jct",
+  "DEDE_USER_ID": "Bot的B站UID",
+  "OWNER_MID": 0,
+  "REFRESH_TOKEN": "",
+
+  "OR_API_KEY": "你的OpenRouter API Key",
+  "OR_BASE_URL": "https://openrouter.ai/api/v1",
+
+  "OR_CHAT_MODEL": "anthropic/claude-sonnet-4-5",
+  "OR_CHAT_MODEL_FALLBACK": "google/gemini-3-flash-preview",
+  "OR_VISION_MODEL": "google/gemini-3-flash-preview",
+  "OR_SEARCH_MODEL": "google/gemini-3-flash-preview:online",
+  "OR_IMAGE_MODEL": "black-forest-labs/flux.2-pro",
+
+  "SILICON_API_KEY": "你的SiliconFlow API Key",
+
+  "BOT_NAME": "你的Bot名字",
+  "BOT_AVATAR": "🤖",
+  "BOT_SUBTITLE": "AI 聊天助手",
+  "OWNER_NAME": "你的名字",
+  "OWNER_BILI_NAME": "你的B站昵称"
+}
