@@ -1233,14 +1233,37 @@ body::before {
     <p>Bot的主动行为记录</p>
   </div>
   <div class="panel-content">
+    <!-- 今日计划 -->
+    <div class="settings-card" style="margin-bottom:16px;">
+      <div class="settings-card-header">
+        <span class="settings-card-title">📅 今日计划</span>
+        <button class="settings-btn small" onclick="loadTodaySchedule()">刷新</button>
+      </div>
+      <div class="settings-card-body" id="todaySchedule">
+        <p style="color:var(--text-dim)">加载中...</p>
+      </div>
+    </div>
+
     <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
       <button class="summary-btn" style="margin:0" onclick="switchPanel('watchlog')">📺 观影日记</button>
       <button class="summary-btn" style="margin:0" onclick="switchPanel('proactive')">📢 主动评论</button>
+      <button class="summary-btn" style="margin:0" onclick="switchPanel('dynamiclog')">📝 动态记录</button>
       <button class="summary-btn" style="margin:0" onclick="switchPanel('cost')">💰 费用统计</button>
     </div>
     <div id="activitySummary">
       <p style="color:var(--text-dim)">选择上方按钮查看详细日志</p>
     </div>
+  </div>
+</div>
+
+<!-- 动态记录面板 -->
+<div id="panel-dynamiclog" class="panel">
+  <div class="panel-header">
+    <h2>📝 动态记录</h2>
+    <p>Bot发布的B站动态</p>
+  </div>
+  <div class="panel-content">
+    <div id="dynamicLogList"></div>
   </div>
 </div>
 
@@ -2026,7 +2049,8 @@ function switchPanel(name) {
   if (name === 'personality') loadPersonality();
   if (name === 'settings') loadSettings();
   if (name === 'persona') loadPersonas();
-  if (name === 'activity') {} // just shows buttons
+  if (name === 'activity') loadTodaySchedule();
+  if (name === 'dynamiclog') loadDynamicLog();
 }
 
 let chatController = null;
@@ -2527,6 +2551,55 @@ async function loadProactive() {
         <div style="font-size:13px;color:var(--text-dim);line-height:1.6;">💬 ${escapeHtml(l.comment)}</div>
       </div>`).join('');
   } catch(e) { document.getElementById('proactiveList').innerHTML = '<p style="color:var(--text-dim)">加载失败</p>'; }
+}
+
+// ===== 今日计划 =====
+async function loadTodaySchedule() {
+  try {
+    const resp = await fetch('/api/schedule/today');
+    const data = await resp.json();
+    const el = document.getElementById('todaySchedule');
+    if (!data.date) { el.innerHTML = '<p style="color:var(--text-dim)">ai.py 未运行或尚未生成今日计划</p>'; return; }
+    const proTimes = data.proactive_times || [];
+    const proTriggered = data.proactive_triggered || [];
+    const dynTime = data.dynamic_time || '--:--';
+    const dynDone = data.dynamic_triggered;
+
+    const timeItems = proTimes.map(t => {
+      const done = proTriggered.includes(t);
+      return `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:8px;font-size:13px;${done ? 'background:rgba(46,204,113,0.1);color:#2ecc71;' : 'background:rgba(126,200,227,0.08);color:var(--ice-blue);'}">${done ? '✓' : '⏳'} ${t}</span>`;
+    }).join(' ');
+
+    el.innerHTML = `
+      <div style="margin-bottom:12px;">
+        <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;">📺 主动刷视频</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">${timeItems || '<span style="color:var(--text-dim);font-size:12px;">未设置</span>'}</div>
+      </div>
+      <div>
+        <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;">📝 发动态</div>
+        <span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:8px;font-size:13px;${dynDone ? 'background:rgba(46,204,113,0.1);color:#2ecc71;' : 'background:rgba(126,200,227,0.08);color:var(--ice-blue);'}">${dynDone ? '✓' : '⏳'} ${dynTime}</span>
+      </div>
+      <div style="font-size:11px;color:var(--text-dim);margin-top:8px;">日期：${data.date}　每天自动随机生成新时间</div>`;
+  } catch(e) { document.getElementById('todaySchedule').innerHTML = '<p style="color:var(--text-dim)">加载失败，确认 ai.py 是否在运行</p>'; }
+}
+
+// ===== 动态记录 =====
+async function loadDynamicLog() {
+  try {
+    const resp = await fetch('/api/dynamic/list');
+    const data = await resp.json();
+    const list = document.getElementById('dynamicLogList');
+    if (!data.logs || !data.logs.length) { list.innerHTML = '<p style="color:var(--text-dim)">暂无动态记录</p>'; return; }
+    list.innerHTML = data.logs.map(l => `
+      <div class="user-card" style="flex-direction:column;align-items:stretch;gap:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:12px;color:var(--text-dim)">${l.time}</span>
+          <span style="font-size:11px;color:${l.has_image ? 'var(--ice-blue)' : 'var(--text-dim)'};">${l.has_image ? '🖼 带图' : '📝 纯文字'}</span>
+        </div>
+        <div style="font-size:13px;color:var(--text-main);line-height:1.6;">${escapeHtml(l.text)}</div>
+        ${l.image_prompt ? `<div style="font-size:11px;color:var(--text-dim);">画图 prompt: ${escapeHtml(l.image_prompt).substring(0,80)}...</div>` : ''}
+      </div>`).join('');
+  } catch(e) { document.getElementById('dynamicLogList').innerHTML = '<p style="color:var(--text-dim)">加载失败</p>'; }
 }
 
 // ===== 观影日记 =====

@@ -20,14 +20,66 @@ from config import *
 
 POLL_INTERVAL = 20
 
-# 生成2个随机触发时间
-proactive_times = sorted(random.sample(range(10, 23), 2))
-proactive_times = [(h, random.randint(0, 59)) for h in proactive_times]
-proactive_triggered = set()
+# 生成随机触发时间（每天自动重置）
+SCHEDULE_FILE = "data/schedule_today.json"
 
-# 动态发布时间（每天随机一个时间）
-dynamic_time = (random.randint(10, 21), random.randint(0, 59))
-dynamic_triggered = False
+def generate_daily_schedule():
+    """生成今天的随机触发时间"""
+    from config import get_raw_config
+    cfg = get_raw_config()
+    n_times = cfg.get("PROACTIVE_TIMES_COUNT", 2)
+    times = sorted(random.sample(range(10, 23), min(n_times, 12)))
+    times = [(h, random.randint(0, 59)) for h in times]
+    dynamic = (random.randint(10, 21), random.randint(0, 59))
+    schedule = {
+        "date": datetime.now().strftime("%Y-%m-%d"),
+        "proactive_times": [f"{h}:{m:02d}" for h, m in times],
+        "dynamic_time": f"{dynamic[0]}:{dynamic[1]:02d}",
+        "proactive_triggered": [],
+        "dynamic_triggered": False,
+    }
+    # 保存到文件，前端可以读取
+    os.makedirs("data", exist_ok=True)
+    with open(SCHEDULE_FILE, "w", encoding="utf-8") as f:
+        json.dump(schedule, f, ensure_ascii=False, indent=2)
+    return times, set(), dynamic, False
+
+def load_or_generate_schedule():
+    """加载今天的计划，如果是新的一天则重新生成"""
+    try:
+        with open(SCHEDULE_FILE, "r", encoding="utf-8") as f:
+            schedule = json.load(f)
+        if schedule.get("date") == datetime.now().strftime("%Y-%m-%d"):
+            # 今天的计划还在，恢复状态
+            times = []
+            for t in schedule.get("proactive_times", []):
+                h, m = t.split(":")
+                times.append((int(h), int(m)))
+            triggered = set(schedule.get("proactive_triggered", []))
+            dh, dm = schedule.get("dynamic_time", "15:00").split(":")
+            dynamic = (int(dh), int(dm))
+            dynamic_done = schedule.get("dynamic_triggered", False)
+            return times, triggered, dynamic, dynamic_done
+    except:
+        pass
+    return generate_daily_schedule()
+
+proactive_times, proactive_triggered, dynamic_time, dynamic_triggered = load_or_generate_schedule()
+
+def save_schedule_state():
+    """保存当前触发状态到文件"""
+    schedule = {
+        "date": datetime.now().strftime("%Y-%m-%d"),
+        "proactive_times": [f"{h}:{m:02d}" for h, m in proactive_times],
+        "dynamic_time": f"{dynamic_time[0]}:{dynamic_time[1]:02d}",
+        "proactive_triggered": list(proactive_triggered),
+        "dynamic_triggered": dynamic_triggered,
+    }
+    try:
+        with open(SCHEDULE_FILE, "w", encoding="utf-8") as f:
+            json.dump(schedule, f, ensure_ascii=False, indent=2)
+    except:
+        pass
 
 MAX_REPLIES_PER_RUN = 3
 REPLIED_FILE = "data/replied.json"
@@ -921,10 +973,13 @@ def generate_reply_and_score(comment_text, username, level, memory_context):
         # 没有自定义人格，用通用默认
         persona_section = f"你是{_bi4['bot_name']}，一个有自己性格和态度的AI。你有自己的审美和偏好，说话自然有个性。"
 
+    _default_style = "【说话风格】\n- 轻松自然，像朋友聊天\n- 有自己的态度，不复读别人的话\n- 回复应基于用户当前评论的内容和语境，历史记忆仅作为辅助背景"
+    _final_style = _style_prompt if _style_prompt else _default_style
+
     prompt = f"""{persona_section}
 {get_personality_prompt()}
 
-{_style_prompt if _style_prompt else "【说话风格】\n- 轻松自然，像朋友聊天\n- 有自己的态度，不复读别人的话\n- 回复应基于用户当前评论的内容和语境，历史记忆仅作为辅助背景"}{_bili_note}
+{_final_style}{_bili_note}
 
 {_owner_prompt}
 
@@ -981,7 +1036,7 @@ def block_user(mid):
         return False
 
 def run():
-    global proactive_triggered, dynamic_triggered
+    global proactive_times, proactive_triggered, dynamic_time, dynamic_triggered
     print("🤖 Bot已启动，正在监听评论...")
 
     # 启动时检查 Cookie
@@ -1038,17 +1093,31 @@ def run():
                     last_cookie_check = time.time()
 
             from config import ENABLE_PROACTIVE, ENABLE_DYNAMIC
+
+            # 每日重置：新的一天，重新生成随机时间
+            today_str = now.strftime("%Y-%m-%d")
+            try:
+                with open(SCHEDULE_FILE, "r") as _sf:
+                    _sched = json.load(_sf)
+                if _sched.get("date") != today_str:
+                    proactive_times, proactive_triggered, dynamic_time, dynamic_triggered = generate_daily_schedule()
+                    print(f"📅 新的一天！主动视频时间：{[f'{h}:{m:02d}' for h,m in proactive_times]}，动态时间：{dynamic_time[0]}:{dynamic_time[1]:02d}")
+            except:
+                proactive_times, proactive_triggered, dynamic_time, dynamic_triggered = generate_daily_schedule()
+
             if ENABLE_PROACTIVE:
                 for h, m in proactive_times:
-                    key = f"{h}:{m}"
+                    key = f"{h}:{m:02d}"
                     if key not in proactive_triggered and (now.hour > h or (now.hour == h and now.minute >= m)):
                         subprocess.Popen([PYTHON, os.path.join(BASE_DIR, "Proactive.py")])
                         proactive_triggered.add(key)
+                        save_schedule_state()
                         print(f"🎯 触发主动评论（{h}:{m:02d}）")
 
             if ENABLE_DYNAMIC and not dynamic_triggered and (now.hour > dynamic_time[0] or (now.hour == dynamic_time[0] and now.minute >= dynamic_time[1])):
                 subprocess.Popen([PYTHON, os.path.join(BASE_DIR, "dynamic.py")])
                 dynamic_triggered = True
+                save_schedule_state()
                 print(f"📢 触发动态发布（{dynamic_time[0]}:{dynamic_time[1]:02d}）")
 
             # 每日性格演化（独立于休眠判断）

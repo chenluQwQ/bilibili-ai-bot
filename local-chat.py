@@ -936,6 +936,19 @@ def proactive_list():
     logs.sort(key=lambda x: x.get("time", ""), reverse=True)
     return jsonify({"logs": logs[:50]})
 
+@app.route("/api/schedule/today", methods=["GET"])
+def schedule_today():
+    """返回今天的触发计划（ai.py 生成的随机时间）"""
+    schedule = load_json("data/schedule_today.json", {})
+    return jsonify(schedule)
+
+@app.route("/api/dynamic/list", methods=["GET"])
+def dynamic_list():
+    """返回动态发布记录"""
+    logs = load_json("data/dynamic_log.json", [])
+    logs.sort(key=lambda x: x.get("time", ""), reverse=True)
+    return jsonify({"logs": logs[:50]})
+
 @app.route("/api/watchlog/list", methods=["GET"])
 def watchlog_list():
     logs = load_json("data/watch_log.json", [])
