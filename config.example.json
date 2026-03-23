@@ -5,16 +5,18 @@
   "OWNER_MID": 0,
   "REFRESH_TOKEN": "",
 
-  "OR_API_KEY": "你的OpenRouter API Key",
-  "OR_BASE_URL": "https://openrouter.ai/api/v1",
+  "OR_API_KEY": "你的API Key",
+  "OR_BASE_URL": "你的API Base URL",
 
-  "OR_CHAT_MODEL": "anthropic/claude-sonnet-4-5",
-  "OR_CHAT_MODEL_FALLBACK": "google/gemini-3-flash-preview",
-  "OR_VISION_MODEL": "google/gemini-3-flash-preview",
-  "OR_SEARCH_MODEL": "google/gemini-3-flash-preview:online",
-  "OR_IMAGE_MODEL": "black-forest-labs/flux.2-pro",
+  "OR_CHAT_MODEL": "对话模型ID",
+  "OR_CHAT_MODEL_FALLBACK": "备用对话模型ID（可留空）",
+  "OR_VISION_MODEL": "视觉模型ID",
+  "OR_SEARCH_MODEL": "搜索模型ID（需支持联网）",
+  "OR_IMAGE_MODEL": "图片生成模型ID",
 
-  "SILICON_API_KEY": "你的SiliconFlow API Key",
+  "SILICON_API_KEY": "你的Embedding API Key",
+  "EMBED_BASE_URL": "Embedding API Base URL",
+  "EMBED_MODEL": "Embedding模型ID",
 
   "BOT_NAME": "你的Bot名字",
   "BOT_AVATAR": "🤖",
