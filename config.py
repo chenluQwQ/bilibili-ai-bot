@@ -6,6 +6,9 @@ import json
 import os
 import time
 import requests
+import re
+import hashlib
+from datetime import datetime
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 
@@ -18,38 +21,38 @@ _DEFAULTS = {
     "OWNER_MID": 0,
     "REFRESH_TOKEN": "",
 
-    # OpenRouter（全局默认，各模型可单独覆盖）
+    # API 配置（全局默认，各模型可单独覆盖）
     "OR_API_KEY": "",
-    "OR_BASE_URL": "https://openrouter.ai/api/v1",
+    "OR_BASE_URL": "",
 
     # 对话模型
-    "OR_CHAT_MODEL": "anthropic/claude-sonnet-4-5",
-    "OR_CHAT_MODEL_FALLBACK": "google/gemini-3-flash-preview",
+    "OR_CHAT_MODEL": "",
+    "OR_CHAT_MODEL_FALLBACK": "",
     "OR_CHAT_URL": "",       # 留空=用全局 OR_BASE_URL
     "OR_CHAT_KEY": "",       # 留空=用全局 OR_API_KEY
 
     # 视觉模型
-    "OR_VISION_MODEL": "google/gemini-3-flash-preview",
-    "OR_VISION_MODEL_FALLBACK": "google/gemini-2.5-flash-preview",
+    "OR_VISION_MODEL": "",
+    "OR_VISION_MODEL_FALLBACK": "",
     "OR_VISION_URL": "",
     "OR_VISION_KEY": "",
 
     # 搜索模型
-    "OR_SEARCH_MODEL": "google/gemini-3-flash-preview:online",
-    "OR_SEARCH_MODEL_FALLBACK": "google/gemini-2.5-flash-preview:online",
+    "OR_SEARCH_MODEL": "",
+    "OR_SEARCH_MODEL_FALLBACK": "",
     "OR_SEARCH_URL": "",
     "OR_SEARCH_KEY": "",
 
     # 图片生成模型
-    "OR_IMAGE_MODEL": "black-forest-labs/flux.2-pro",
+    "OR_IMAGE_MODEL": "",
     "OR_IMAGE_MODEL_FALLBACK": "",
     "OR_IMAGE_URL": "",
     "OR_IMAGE_KEY": "",
 
-    # SiliconFlow（embedding）
+    # Embedding 模型（用于记忆语义检索）
     "SILICON_API_KEY": "",
-    "EMBED_BASE_URL": "https://api.siliconflow.cn/v1",
-    "EMBED_MODEL": "BAAI/bge-m3",
+    "EMBED_BASE_URL": "",
+    "EMBED_MODEL": "",
 
     # ===== 功能开关 =====
     "ENABLE_WEB_SEARCH": True,
@@ -333,58 +336,208 @@ def check_bili_cookie():
     except Exception as e:
         return False, f"检查失败: {e}"
 
-# ========== B站 Cookie 自动刷新 ==========
+# ========== B站 Cookie 自动刷新（完整实现） ==========
+
+# B站 RSA 公钥（用于生成 correspondPath）
+_BILI_RSA_PUBLIC_KEY = """-----BEGIN PUBLIC KEY-----
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDLgd2OAkcGVtoE3ThUREbio0Eg
+Uc/prcajMKXvkCKFCWhJYJcLkcM2DKKcSeFpD/j6Boy538YXnR6VhcuUJOhH2x71
+nzPjfdTcqMz7djHum0qSZA0AyCBDABUqCrfNgCiJ00Ra7GmRj+YCK1NJEuewlb40
+JNrRuoEUXpabUzGB8QIDAQAB
+-----END PUBLIC KEY-----"""
+
+
+def _generate_correspond_path(timestamp_ms: int) -> str:
+    """
+    用 RSA 公钥加密 'refresh_{timestamp_ms}'，生成 correspondPath
+    使用 OAEP 填充（SHA-256）
+    """
+    from cryptography.hazmat.primitives.asymmetric import padding
+    from cryptography.hazmat.primitives import hashes, serialization
+
+    # 加载公钥
+    public_key = serialization.load_pem_public_key(_BILI_RSA_PUBLIC_KEY.encode())
+
+    # 加密明文
+    plaintext = f"refresh_{timestamp_ms}".encode()
+    ciphertext = public_key.encrypt(
+        plaintext,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None
+        )
+    )
+
+    # 转为十六进制字符串
+    return ciphertext.hex()
+
+
+def check_need_refresh() -> tuple:
+    """
+    检查 Cookie 是否需要刷新
+    返回 (need_refresh: bool, message: str)
+    """
+    cfg = _load_config()
+    sessdata = cfg.get("SESSDATA", "")
+    bili_jct = cfg.get("BILI_JCT", "")
+
+    if not sessdata:
+        return False, "SESSDATA 为空，无法检查"
+
+    try:
+        url = "https://passport.bilibili.com/x/passport-login/web/cookie/info"
+        params = {"csrf": bili_jct}
+        headers = {
+            "Cookie": f"SESSDATA={sessdata}; bili_jct={bili_jct}",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+        resp = requests.get(url, params=params, headers=headers, timeout=10)
+        data = resp.json()
+
+        if data["code"] != 0:
+            return False, f"检查失败: code={data['code']}, {data.get('message', '')}"
+
+        refresh = data["data"].get("refresh", False)
+        timestamp = data["data"].get("timestamp", 0)
+
+        if refresh:
+            return True, f"需要刷新 (服务器时间戳: {timestamp})"
+        else:
+            return False, "Cookie 仍然有效，暂不需要刷新"
+    except Exception as e:
+        return False, f"检查出错: {e}"
+
+
 def refresh_bili_cookie():
     """
-    尝试刷新B站cookie（需要 REFRESH_TOKEN）
+    完整的 B站 Cookie 刷新流程：
+    1. 检查是否需要刷新
+    2. RSA 加密生成 correspondPath
+    3. 获取 refresh_csrf
+    4. 调用刷新接口
+    5. 确认更新（用旧 refresh_token）
     返回 (success: bool, message: str)
     """
     cfg = _load_config()
+    sessdata = cfg.get("SESSDATA", "")
+    bili_jct = cfg.get("BILI_JCT", "")
     rt = cfg.get("REFRESH_TOKEN", "")
+
     if not rt:
-        return False, "没有 refresh_token，无法自动刷新，请手动更新 Cookie"
+        return False, "没有 REFRESH_TOKEN，无法自动刷新。请在面板中填入 refresh_token（登录时从浏览器 localStorage 的 ac_time_value 或登录接口获取）"
+
+    if not sessdata:
+        return False, "SESSDATA 为空，请先手动登录获取 Cookie"
+
+    headers_base = {
+        "Cookie": f"SESSDATA={sessdata}; bili_jct={bili_jct}",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://www.bilibili.com"
+    }
 
     try:
-        # 第一步：获取 refresh_csrf
-        csrf_url = "https://www.bilibili.com/correspond/1/" + str(int(time.time() * 1000))
-        csrf_resp = requests.get(csrf_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+        # === 第1步：检查是否需要刷新 ===
+        info_url = "https://passport.bilibili.com/x/passport-login/web/cookie/info"
+        info_resp = requests.get(info_url, params={"csrf": bili_jct}, headers=headers_base, timeout=10)
+        info_data = info_resp.json()
 
-        # 第二步：调用刷新接口
-        url = "https://passport.bilibili.com/x/passport-login/web/cookie/refresh"
-        data = {
-            "csrf": cfg["BILI_JCT"],
-            "refresh_csrf": "",  # 从第一步获取
+        if info_data["code"] != 0:
+            return False, f"检查刷新状态失败: {info_data.get('message', str(info_data['code']))}"
+
+        need_refresh = info_data["data"].get("refresh", False)
+        if not need_refresh:
+            return True, "Cookie 仍然有效，无需刷新"
+
+        print("🔄 Cookie 需要刷新，开始刷新流程...")
+
+        # === 第2步：RSA 加密生成 correspondPath ===
+        timestamp_ms = int(time.time() * 1000)
+        try:
+            correspond_path = _generate_correspond_path(timestamp_ms)
+        except ImportError:
+            return False, "缺少 cryptography 库，请运行: pip install cryptography"
+        except Exception as e:
+            return False, f"生成 correspondPath 失败: {e}"
+
+        # === 第3步：获取 refresh_csrf ===
+        correspond_url = f"https://www.bilibili.com/correspond/1/{correspond_path}"
+        csrf_resp = requests.get(correspond_url, headers=headers_base, timeout=10)
+
+        if csrf_resp.status_code != 200:
+            return False, f"获取 refresh_csrf 页面失败: HTTP {csrf_resp.status_code}"
+
+        # 从 HTML 中提取 <div id="1-name">xxx</div> 里的 refresh_csrf
+        match = re.search(r'<div\s+id="1-name"\s*>([^<]+)</div>', csrf_resp.text)
+        if not match:
+            return False, f"无法从页面提取 refresh_csrf，页面内容可能已变更"
+
+        refresh_csrf = match.group(1).strip()
+        print(f"✅ 获取到 refresh_csrf: {refresh_csrf[:8]}...")
+
+        # === 第4步：调用刷新接口 ===
+        refresh_url = "https://passport.bilibili.com/x/passport-login/web/cookie/refresh"
+        refresh_data = {
+            "csrf": bili_jct,
+            "refresh_csrf": refresh_csrf,
             "source": "main_web",
             "refresh_token": rt,
         }
-        h = {
-            "Cookie": f"SESSDATA={cfg['SESSDATA']}; bili_jct={cfg['BILI_JCT']}",
-            "User-Agent": "Mozilla/5.0",
-            "Referer": "https://www.bilibili.com"
-        }
-        resp = requests.post(url, headers=h, data=data, timeout=10)
-        result = resp.json()
+        refresh_resp = requests.post(refresh_url, headers=headers_base, data=refresh_data, timeout=10)
+        refresh_result = refresh_resp.json()
 
-        if result["code"] == 0:
-            new_data = result["data"]
-            # 从 Set-Cookie 中提取新的 SESSDATA 和 bili_jct
-            new_rt = new_data.get("refresh_token", rt)
-            # 更新配置
-            updates = {"REFRESH_TOKEN": new_rt}
+        if refresh_result["code"] != 0:
+            msg = refresh_result.get("message", str(refresh_result["code"]))
+            if refresh_result["code"] == 86095:
+                return False, f"刷新失败(86095): refresh_csrf 或 refresh_token 与 cookie 不匹配，可能需要重新登录"
+            return False, f"刷新接口返回错误: {msg}"
 
-            # 从响应 cookies 中获取新值
-            for cookie in resp.cookies:
-                if cookie.name == "SESSDATA":
-                    updates["SESSDATA"] = cookie.value
-                elif cookie.name == "bili_jct":
-                    updates["BILI_JCT"] = cookie.value
+        # 提取新的 refresh_token
+        new_rt = refresh_result["data"].get("refresh_token", "")
 
-            if "SESSDATA" in updates:
-                update_config(updates)
-                return True, "Cookie 刷新成功"
+        # 从响应 Set-Cookie 中提取新的 SESSDATA 和 bili_jct
+        updates = {}
+        if new_rt:
+            updates["REFRESH_TOKEN"] = new_rt
+
+        for cookie in refresh_resp.cookies:
+            if cookie.name == "SESSDATA":
+                updates["SESSDATA"] = cookie.value
+            elif cookie.name == "bili_jct":
+                updates["BILI_JCT"] = cookie.value
+            elif cookie.name == "DedeUserID":
+                updates["DEDE_USER_ID"] = cookie.value
+
+        if "SESSDATA" not in updates:
+            return False, "刷新响应中未找到新的 SESSDATA Cookie"
+
+        # 先保存新 Cookie
+        update_config(updates)
+        print(f"✅ 新 Cookie 已保存: SESSDATA={updates['SESSDATA'][:8]}...")
+
+        # === 第5步：确认更新（用新 Cookie + 旧 refresh_token） ===
+        try:
+            confirm_url = "https://passport.bilibili.com/x/passport-login/web/confirm/refresh"
+            confirm_headers = {
+                "Cookie": f"SESSDATA={updates['SESSDATA']}; bili_jct={updates.get('BILI_JCT', bili_jct)}",
+                "User-Agent": headers_base["User-Agent"],
+                "Referer": "https://www.bilibili.com"
+            }
+            confirm_data = {
+                "csrf": updates.get("BILI_JCT", bili_jct),
+                "refresh_token": rt,  # 注意：这里用的是【旧的】refresh_token
+            }
+            confirm_resp = requests.post(confirm_url, headers=confirm_headers, data=confirm_data, timeout=10)
+            confirm_result = confirm_resp.json()
+
+            if confirm_result["code"] == 0:
+                print("✅ 刷新确认成功，旧 refresh_token 已失效")
             else:
-                return False, "刷新响应中未找到新 Cookie"
-        else:
-            return False, f"刷新失败: {result.get('message', str(result['code']))}"
+                print(f"⚠️ 刷新确认返回: {confirm_result.get('message', confirm_result['code'])}（Cookie 已更新，不影响使用）")
+        except Exception as e:
+            print(f"⚠️ 刷新确认步骤出错: {e}（Cookie 已更新，不影响使用）")
+
+        return True, f"Cookie 刷新成功！新 SESSDATA: {updates['SESSDATA'][:8]}..."
+
     except Exception as e:
         return False, f"刷新出错: {e}"

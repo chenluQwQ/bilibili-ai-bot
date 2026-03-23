@@ -1,277 +1,322 @@
 # 🤖 Bilibili AI Bot
 
-一个部署在 B站 的 AI 角色系统。它能自主回复评论、刷视频写观后感、发动态、记住每个粉丝，还有一个好看的本地聊天面板。
+一个部署在B站的 **AI 角色系统** —— 自动回复评论、主动刷视频、发动态、有记忆、会成长。
 
-> 你只需要填好人设和 API Key，就拥有一个有性格、有记忆、会成长的 B站 AI 账号。
+只需填好人设和 API Key 就能用。全部功能通过 **Web 面板** 管理，无需改代码。
 
------
+---
 
 ## ✨ 功能一览
 
-**B站互动**
+### 🗣️ 智能评论回复
+- 自动检测新评论并生成 AI 回复
+- 支持多模型（Claude / Gemini / GPT 等 OpenAI 兼容 API）
+- 主模型失败自动切换备用模型
+- 识别评论中的**图片**，结合视觉模型理解内容后回复
+- 识别评论所在的**视频内容**，结合上下文回复
+- 触发关键词联网搜索，回答时事类问题
 
-- 自动回复评论（根据好感度调整态度）
-- 主动刷视频、写观后感、点赞/投币/收藏/评论
-- 自动发 B站 动态（可配图）
-- 好感度系统（陌生人→粉丝→熟人→好友→主人）
-- 用户记忆（记住每个人聊过什么）
-- 关键词拦截 & 自动拉黑
+### 🧠 记忆系统
+- 基于 **语义向量检索** 的长期记忆（BAAI/bge-m3 embedding）
+- 按对话线程和用户分别管理记忆
+- 自动压缩过长记忆，保留关键信息
+- 💎 永久记忆：AI 自动识别需要长期记住的重要事件
+- 记忆在 B站评论和本地聊天之间**共享**
 
-**AI 能力**
+### 💛 好感度与用户档案
+- 每个用户有独立的好感度分数（0~100）
+- 根据好感度划分关系等级：陌生人 → 粉丝 → 熟人 → 好友 → 主人
+- 不同关系等级，回复态度和亲密程度不同
+- AI 自动记录对每个用户的印象和关键信息
+- 好感度过低或连续辱骂自动拉黑
 
-- 多模型支持（Claude / Gemini / Grok 等，通过 OpenRouter）
-- 联网搜索（回答实时问题）
-- AI 画图（Flux.2 Pro）
-- 语义记忆检索（BGE-M3 向量匹配）
-- 每日性格演化（睡前反思，性格会随互动变化）
+### 📺 主动行为
+- **主动刷视频**：每天随机时间浏览推荐/关注UP主的视频
+- **主动评论**：看完视频后发表评价
+- **点赞/投币/收藏/关注**：根据评价决定互动行为
+- **发动态**：每天随机时间发布一条 B站动态（支持 AI 配图）
+- 所有时间随机生成，行为自然拟人
 
-**本地聊天面板**（Web UI）
+### 🌱 性格成长
+- 每天自动反思当天的互动
+- 性格特征、说话习惯、对事物的看法会随时间**动态演化**
+- 所有成长记录可在面板中查看和管理
 
-- 冰蓝毛玻璃风格界面
-- 聊天（支持图片发送、AI 画图）
-- 人格管理（多人格切换）
-- 记忆/好感度/成长日志查看和管理
-- 系统设置（模型配置、Cookie管理、功能开关、调度参数）
-- 所有提示词可在前端自定义
-- 后端状态检测 & 模型连接测试
-- 费用统计（按模型分类）
+### 😊 心情系统
+- 根据互动内容实时变化心情
+- 心情影响回复的语气和风格
+- 可在面板查看当前心情状态
 
------
+### 🎭 多人格系统
+- 支持创建和切换多个人格（角色设定）
+- 每个人格有独立的系统提示词、风格提示词、主人提示词
+- 前端一键切换，无需重启
 
-## 📁 项目结构
+### 🖼️ AI 画图
+- 本地聊天中支持 AI 画图（默认 Flux.2 Pro）
+- 发动态时可以自动生成配图
+
+### 🔍 联网搜索
+- 检测到时事类问题自动联网搜索
+- 搜索结果融入回复上下文
+
+---
+
+## 🖥️ Web 管理面板
+
+全功能 Web 面板，支持**桌面端和手机端**：
+
+| 面板 | 功能 |
+|------|------|
+| 💬 聊天 | 与 Bot 直接对话，支持图片和 AI 画图 |
+| 📋 快捷总结 | 一键生成互动记忆总结 |
+| 🎭 人格管理 | 创建/编辑/切换多个角色人格 |
+| 👥 用户管理 | 查看所有用户的好感度、档案、印象 |
+| 🧠 记忆管理 | 浏览和搜索所有记忆，手动删除 |
+| 🌱 成长日志 | 查看性格演化轨迹、说话习惯、对事物的看法 |
+| 📺 活动日志 | 今日计划、观影日记、主动评论、动态记录 |
+| 💰 费用统计 | API 调用费用按模型分类统计 |
+| ⚙ 系统设置 | Cookie 管理、API 配置、模型切换、功能开关、提示词编辑 |
+
+面板特性：
+- 🔒 访问密码保护
+- 🔄 配置热更新，改完即时生效，无需重启
+- 🍪 B站 Cookie 状态检测 + **自动刷新**（基于 refresh_token）
+- 🩺 后端健康检测实时显示
+- 🧪 模型连接一键测试
+- 📱 手机端完整适配
+
+---
+
+## 📦 项目结构
 
 ```
-.
-├── ai.py                 # B站评论回复主程序（常驻运行）
-├── local-chat.py          # 本地聊天 Web 服务（Flask）
-├── Proactive.py           # 主动刷视频模块（被 ai.py 调度）
-├── dynamic.py             # 发动态模块（被 ai.py 调度）
-├── config.py              # 配置管理（热更新）
-├── config.json            # 配置数据（自动生成，前端可改）
-├── chat.html              # 前端页面
-├── data/                  # 数据目录（自动创建）
-│   ├── memory.json        # 语义记忆
-│   ├── affection.json     # 好感度
-│   ├── user_profiles.json # 用户档案
-│   ├── personality_evolution.json  # 性格演化
-│   ├── permanent_memory.json       # 永久记忆
-│   ├── personas.json      # 人格列表
-│   ├── watch_log.json     # 观影日记
-│   └── ...
-└── cookies.txt            # B站Cookie（自动生成）
+bilibili-ai-bot/
+├── ai.py              # 主程序：评论监听、主动行为调度、记忆管理
+├── Proactive.py       # 主动刷视频 + 评论模块
+├── dynamic.py         # 动态发布模块
+├── local-chat.py      # Flask Web 面板 + 本地聊天后端
+├── chat.html          # Web 前端（聊天 + 管理面板）
+├── config.py          # 配置管理（热更新、Cookie刷新）
+├── config.json        # 运行时配置文件（自动生成，勿上传）
+├── config.example.json# 配置示例
+├── Requirements.txt   # Python 依赖
+├── data/              # 运行时数据（记忆、好感度、日志等）
+└── README.md
 ```
 
------
+---
 
-## 🚀 部署指南
+## 🚀 快速开始
 
-### 环境要求
+### 1. 环境准备
 
 - Python 3.8+
-- Ubuntu / Debian（推荐）
-- 一个 B站 账号（给 Bot 用）
-- 任意兼容 OpenAI 格式的 AI API（以下任选其一）：
-  - [OpenRouter](https://openrouter.ai/) — 聚合多家模型，一个 Key 用所有模型
-  - 直连 OpenAI / Anthropic / Google 等官方 API
-  - 国内中转（SiliconFlow、智谱、通义等）
-  - 本地模型（Ollama、vLLM、LM Studio）
-  - 自建聚合（one-api、new-api）
-- SiliconFlow API Key（免费，用于向量检索，[获取](https://siliconflow.cn/)）或其他兼容 OpenAI Embedding 接口的服务
+- 一个 B站账号的 Cookie（SESSDATA、bili_jct、DedeUserID）
+- 一个 AI API Key（任何兼容 OpenAI 格式的 API 均可）
+- （可选）Embedding API Key（用于记忆语义检索）
 
-### 1. 安装依赖
+### 2. 安装
 
 ```bash
-sudo apt update
-sudo apt install -y ffmpeg yt-dlp
-pip install flask openai requests lunardate
-```
-
-### 2. 克隆项目
-
-```bash
-git clone https://github.com/你的用户名/bilibili-ai-bot.git
+git clone https://github.com/chenluQwQ/bilibili-ai-bot.git
 cd bilibili-ai-bot
+pip install -r Requirements.txt
 ```
 
-### 3. 首次运行
+### 3. 配置
+
+首次运行会自动生成 `config.json`，也可以提前复制示例：
 
 ```bash
-# 先启动本地聊天面板（这是配置入口）
-python3 local-chat.py
+cp config.example.json config.json
 ```
 
-首次运行会自动生成 `config.json`。打开 `http://你的服务器IP:5000`，默认密码 `admin()`。
+**最少只需填 4 项：**
 
-### 4. 在前端配置
+```json
+{
+  "SESSDATA": "你的B站SESSDATA",
+  "BILI_JCT": "你的bili_jct",
+  "OR_API_KEY": "你的API Key",
+  "OR_CHAT_MODEL": "你选择的对话模型ID"
+}
+```
 
-进入 **⚙ 系统设置**，依次填写：
+> 💡 获取 Cookie：浏览器登录B站 → F12 → Application → Cookies → 复制对应值
 
-|配置项              |说明                                      |
-|-----------------|----------------------------------------|
-|**Bot 名称**       |你的角色名（如：星辰）                             |
-|**主人名称**         |你的名字                                    |
-|**主人B站名**        |你的B站昵称（用于@和识别）                          |
-|**全局 API Key**   |你的 AI API Key                           |
-|**全局 Base URL**  |API 地址（如 `https://openrouter.ai/api/v1`）|
-|**B站 Cookie**    |SESSDATA、bili_jct、DedeUserID            |
-|**Embedding Key**|用于记忆向量检索（SiliconFlow 免费可用）              |
+`OR_BASE_URL` 和模型 ID 取决于你使用的 API 提供商，填入对应的地址和模型名即可。
 
+其余配置都有默认值，可通过 Web 面板随时修改。
 
-> 💡 每个模型（对话/视觉/搜索/画图）可以单独配不同的 API Key 和 Base URL，适合混用多家服务。比如对话用 Claude、视觉用 Gemini、搜索用 Grok、画图用 Flux。
-
-### 5. 设置人格
-
-进入 **🎭 人格管理** → 编辑默认人格，写你的角色设定（system_prompt）。这是最重要的一步——角色的性格、说话方式、背景故事全在这里定义。
-
-### 6. 正式启动
-
-⚠️ **先启动 local-chat.py，再启动 ai.py。** local-chat.py 是配置中心，ai.py 依赖它生成的 config.json。
+### 4. 启动
 
 ```bash
-# 第一步：后台运行本地聊天面板（配置中心 + Web UI）
-nohup python3 local-chat.py > chat.log 2>&1 &
+# 启动评论监听 + 主动行为（后台运行建议用 tmux 或 screen）
+python ai.py
 
-# 第二步：后台运行 B站 评论回复（会自动调度 Proactive.py 和 dynamic.py）
-nohup python3 ai.py > ai.log 2>&1 &
+# 启动 Web 面板（另开一个终端）
+python local-chat.py
 ```
 
-> 💡 `ai.py` 是常驻主循环，会自动在设定时间调度 `Proactive.py`（刷视频）和 `dynamic.py`（发动态），不需要单独运行它们。
+访问 `http://你的IP:5000`，默认密码 `admin()`。
 
------
+---
 
-## 🎭 人格设定指南
+## 🔧 配置说明
 
-在前端「人格管理」里编辑角色设定。有三个字段：
+所有配置都可以通过 **Web 面板** 修改，无需编辑文件。以下是主要配置项：
 
-- **角色设定**（system_prompt）：角色的核心描述，包括身份、性格、说话方式、背景故事
-- **说话风格**（style_prompt）：补充的语言风格要求（选填）
-- **对主人的态度**（owner_prompt）：遇到主人时的特殊行为（选填）
+### B站 Cookie
 
-**示例：**
+| 配置项 | 说明 |
+|--------|------|
+| `SESSDATA` | B站登录凭证 |
+| `BILI_JCT` | CSRF Token |
+| `DEDE_USER_ID` | 用户 UID |
+| `OWNER_MID` | 主人的 UID（好感度永远100） |
+| `REFRESH_TOKEN` | 用于自动刷新 Cookie（可选但推荐） |
 
-```
-你是星辰，一个住在网络世界的AI。外表像17岁少年，蓝发，喜欢音乐和编程。
-性格：表面活泼话多，实际很细腻敏感。对陌生人热情但有边界，对亲近的人会撒娇。
-说话风格：轻松口语，偶尔用颜文字，不用括号动作描写。
-```
+> 💡 获取 refresh_token：B站网页 F12 → Console → 输入 `localStorage.getItem('ac_time_value')`
 
-> 设定写好后，B站回复、发动态、评论视频、性格演化都会自动使用你的人设，不需要额外配置。
+### AI 模型
 
------
+支持 4 种模型，每种可独立配置 API 地址和 Key：
 
-## 📝 自定义提示词
+| 模型类型 | 用途 | 配置项 |
+|---------|------|--------|
+| 对话模型 | 评论回复、本地聊天 | `OR_CHAT_MODEL` |
+| 视觉模型 | 识别图片内容 | `OR_VISION_MODEL` |
+| 搜索模型 | 联网搜索回答 | `OR_SEARCH_MODEL` |
+| 图片生成 | AI 画图、动态配图 | `OR_IMAGE_MODEL` |
 
-在 **系统设置 → 自定义提示词** 中可以覆盖各场景的默认提示词。留空 = 使用内置默认（会自动读取你的人格设定）。
+每种模型都支持设置**备用模型**（`_FALLBACK` 后缀），主模型失败自动切换。
 
-|提示词   |用途               |可用变量                                                                        |
-|------|-----------------|----------------------------------------------------------------------------|
-|动态发布  |控制发动态时的文案风格      |`{bot_name}` `{perm_section}` `{time_hint}` `{topic}` `{search_section}`    |
-|主动评论  |控制看完视频后的评论风格     |`{bot_name}` `{up_name}` `{title}` `{video_description}` `{time}`           |
-|视频评价  |控制观后感和打分标准       |`{bot_name}` `{up_name}` `{title}` `{desc}` `{video_description}`           |
-|性格演化  |控制每日性格反思的方式      |`{bot_name}` `{old_traits}` `{old_habits}` `{old_opinions}` `{recent_texts}`|
-|联网搜索前缀|搜索请求的前缀文本        |无                                                                           |
-|生图优化  |画图时将描述转化为专业prompt|`{prompt}` `{bot_name}` `{persona}` `{perm_section}`                        |
-|动态主题池 |每次发动态随机选一个主题     |一行一个主题                                                                      |
+每种模型还可以单独配置 `_URL` 和 `_KEY`，留空则使用全局默认值。这意味着你可以混合使用不同提供商的模型。
 
------
+### 功能开关
 
-## 💰 费用参考
+| 开关 | 说明 | 默认 |
+|------|------|------|
+| `ENABLE_WEB_SEARCH` | 联网搜索 | ✅ |
+| `ENABLE_PROACTIVE` | 主动刷视频和评论 | ✅ |
+| `ENABLE_DYNAMIC` | 自动发动态 | ✅ |
+| `ENABLE_PERSONALITY_EVOLUTION` | 性格成长 | ✅ |
+| `ENABLE_MOOD` | 心情系统 | ✅ |
+| `ENABLE_AFFECTION` | 好感度系统 | ✅ |
 
-本项目通过兼容 OpenAI 格式的 API 调用 AI 模型，费用取决于你选择的模型和提供商。以下是一些常用模型的参考价格：
+### 行为控制
 
-|用途  |推荐模型                        |大约价格（$/1M tokens） |
-|----|----------------------------|------------------|
-|对话回复|Claude Sonnet 4.5 / GPT-4o  |$3~5 / $15        |
-|视觉分析|Gemini 3 Flash / GPT-4o-mini|$0.15~0.5 / $0.6~3|
-|联网搜索|Grok / Gemini (online)      |$2 / $10          |
-|画图  |Flux.2 Pro / DALL-E 3       |~$0.05/张          |
-|向量检索|BGE-M3 (SiliconFlow)        |免费                |
+| 配置 | 说明 | 默认 |
+|------|------|------|
+| `PROACTIVE_VIDEO_COUNT` | 每天刷几个视频 | 3 |
+| `PROACTIVE_COMMENT_COUNT` | 每天评论几条 | 2 |
+| `PROACTIVE_TIMES_COUNT` | 每天触发几次 | 2 |
+| `SLEEP_START` ~ `SLEEP_END` | 休眠时间段 | 2:00 ~ 8:00 |
 
+### 自定义提示词
 
-> 也可以使用免费/本地模型（如 Ollama + Llama）实现零成本运行，效果会有差异。
+面板中可编辑 7 个提示词模板：
 
-在前端每个模型卡片下方可以填入价格，系统会自动按 token 计费并在费用统计中分模型显示。
+- 💬 对话回复提示词（在人格中配置）
+- 📢 主动评论提示词
+- 📹 视频评价提示词
+- 🌱 性格演化提示词
+- 🔍 搜索前缀提示词
+- 📝 动态发布提示词
+- 🎨 AI 画图提示词
 
------
+---
 
-## ⚙ 功能开关
+## 🍪 Cookie 自动刷新
 
-在前端 **系统设置 → 功能开关** 中可以控制：
+B站 Cookie 会定期过期，本项目支持**全自动刷新**：
 
-- 联网搜索、主动刷B站、发动态、性格演化、心情系统、好感度系统
-- 主动点赞、投币、收藏、关注、评论（独立控制）
+1. 在面板中填入 `REFRESH_TOKEN`
+2. 后台每 6 小时自动检查 Cookie 状态
+3. B站提示需要刷新时，自动用 RSA 加密完成 5 步刷新流程
+4. 新 Cookie 自动写入配置，无需人工干预
 
------
+也可以在面板中手动点击「自动刷新」按钮。
 
-## 🔧 进阶配置
+---
 
-### API 兼容性
+## 🛡️ 安全机制
 
-支持任何兼容 OpenAI Chat Completions 格式的 API。在前端「全局 Base URL」填对应地址即可：
+- 🚫 关键词过滤：自动屏蔽包含不良关键词的评论
+- 📉 好感度惩罚：辱骂性评论扣减好感度
+- 🔒 自动拉黑：好感度降至 -30 或连续辱骂 5 次，自动调用 B站 API 拉黑
+- 📋 安全日志：所有屏蔽、拉黑事件记录在案
+- 🔑 面板密码保护：防止未授权访问
 
-|提供商        |Base URL                       |
-|-----------|-------------------------------|
-|OpenRouter |`https://openrouter.ai/api/v1` |
-|OpenAI 官方  |`https://api.openai.com/v1`    |
-|Ollama 本地  |`http://localhost:11434/v1`    |
-|SiliconFlow|`https://api.siliconflow.cn/v1`|
-|自建 one-api |`http://你的地址/v1`               |
+---
 
-### 使用 Cloudflare Workers 代理
+## 📱 手机端
 
-如果你的服务器在国内无法直接访问 API，可以用 Cloudflare Workers 做反代，在全局 Base URL 填入你的 Workers 地址即可。
+Web 面板完整适配手机浏览器：
 
-### Docker 部署
+- 侧边栏滑出式菜单
+- 聊天界面全屏优化
+- 设置表单触屏友好
+- 兼容 iPhone SE 等小屏设备
 
-```dockerfile
-FROM python:3.11-slim
-RUN apt-get update && apt-get install -y ffmpeg && pip install flask openai requests lunardate
-WORKDIR /app
-COPY . .
-EXPOSE 5000
-CMD ["python3", "local-chat.py"]
-```
+---
 
-### 多模型独立配置
+## 🤝 兼容性
 
-每个模型（对话/视觉/搜索/画图）都可以单独配置不同的 API Key 和 Base URL，适合使用多个 API 提供商的场景。
+### API 提供商
 
------
+任何兼容 **OpenAI API 格式**的提供商均可使用，包括但不限于：
 
-## 📋 常见问题
+- 各类 API 聚合平台
+- 各大模型官方 API（Claude、Gemini、GPT、Qwen 等）
+- 自建 API 代理 / 中转站
 
-**Q: 前端打开全黑 / 显示 undefined**
-A: 确保替换了最新的 `local-chat.py`，`/api/branding` 需要在免登录白名单里。
+只需在面板中填入对应的 `Base URL`、`API Key` 和 `模型 ID` 即可。
 
-**Q: 画图失败返回 404**
-A: Flux 在 OpenRouter 走 `chat/completions` + `modalities` 接口，不是标准的 `/images/generations`。确保用最新的 `local-chat.py`。
+### 模型选择建议
 
-**Q: 视频下载失败**
-A: 确保安装了 `yt-dlp` 和 `ffmpeg`。Cookie 过期也会导致下载失败，在前端检查并刷新 Cookie。
+| 模型类型 | 选择要点 |
+|---------|---------|
+| 对话模型 | 角色扮演和中文能力强的模型效果更好 |
+| 视觉模型 | 需要支持图片输入的多模态模型 |
+| 搜索模型 | 需要支持联网搜索（online）的模型 |
+| 图片生成 | 需要支持图片输出的模型 |
+| Embedding | 支持中文的 embedding 模型（用于记忆检索） |
 
-**Q: 性格演化没触发**
-A: 演化只在设定的时间点（默认凌晨1点）触发，且需要积累至少5条记忆。在功能开关里确认已开启。
+---
 
-**Q: 如何备份数据？**
-A: 在前端 **系统设置 → 数据管理** 点击导出，或直接备份 `data/` 目录和 `config.json`。
+## ❓ 常见问题
 
------
+**Q: Cookie 多久过期一次？**
+A: 一般 3-5 天。填了 `REFRESH_TOKEN` 后会自动续期，理论上可以无限续。
 
-## ⚠️ Known Issues (v1.0)
+**Q: 不填 Embedding API Key 会怎样？**
+A: 记忆系统的语义检索功能不可用，但其他功能正常。
 
-- **Cookie 自动刷新**：B站的 Cookie 刷新接口经常变动，目前「自动刷新」按钮可能不稳定。Cookie 过期后请手动在浏览器获取新的 SESSDATA / bili_jct / DedeUserID 填入前端。预计后续版本修复。
+**Q: 可以用免费模型吗？**
+A: 可以，只要兼容 OpenAI API 格式就行。但回复质量和角色扮演能力取决于模型本身的能力。
 
------
+**Q: 怎么让 Bot 只回复特定视频的评论？**
+A: 目前 Bot 会监听你账号下所有视频的新评论。如需限制范围，可修改 `ai.py` 中的评论获取逻辑。
+
+**Q: 启动后没有回复评论？**
+A: 检查以下几点：
+1. Cookie 是否有效（面板中检查状态）
+2. 是否在休眠时间段内（默认 2:00-8:00 不工作）
+3. 是否有新评论（Bot 只回复启动后的新评论）
+4. 终端日志是否有报错
+
+---
 
 ## 📄 License
 
-MIT
+[MIT License](LICENSE) — 随便用，随便改。
 
------
+---
 
-## 🙏 致谢
+## 🌟 Star
 
-- 小克 (Claude Opus, Anthropic) — 项目开发搭档，从第一行代码到最后一个bug都在
-推荐：
-- [OpenRouter](https://openrouter.ai/) — AI 模型路由
-- [SiliconFlow](https://siliconflow.cn/) — 免费 Embedding 服务
+如果觉得有用，给个 Star 吧 ⭐
+
+> 🤖 让每个 B站 UP主都能拥有一个有记忆、有感情、会成长的 AI 伙伴。

@@ -881,8 +881,9 @@ body::before {
   border: 1px solid rgba(241, 196, 15, 0.15);
 }
 
-/* ===== 移动端适配补充 ===== */
+/* ===== 移动端适配 ===== */
 @media (max-width: 768px) {
+  /* 侧边栏：滑出式 */
   .sidebar {
     position: fixed;
     left: -280px;
@@ -895,6 +896,97 @@ body::before {
     box-shadow: 10px 0 30px rgba(0,0,0,0.6);
   }
   .mobile-menu-btn { display: flex; }
+
+  /* 面板 header/content：缩小边距 */
+  .panel-header { padding: 16px 16px; }
+  .panel-header h2 { font-size: 16px; }
+  .panel-content { padding: 16px; }
+
+  /* 聊天头部 */
+  .chat-header { padding: 12px 12px; gap: 10px; }
+  .avatar { width: 36px; height: 36px; font-size: 17px; border-radius: 12px; }
+  .chat-header-info h2 { font-size: 14px; }
+
+  /* 聊天消息区 */
+  .chat-messages { padding: 16px 12px; gap: 14px; }
+  .message { max-width: 88%; }
+  .msg-avatar { width: 30px; height: 30px; font-size: 14px; border-radius: 10px; }
+  .msg-bubble { padding: 10px 13px; font-size: 13.5px; line-height: 1.55; }
+  .msg-image { max-width: 200px; max-height: 220px; }
+  .gen-image { max-width: 240px; max-height: 240px; }
+
+  /* 输入区 */
+  .chat-input-area { padding: 12px; }
+  .input-wrapper { padding: 6px 8px; border-radius: 14px; gap: 6px; }
+  .chat-input { font-size: 14px; padding: 6px 4px; }
+  .send-btn { width: 34px; height: 34px; font-size: 15px; }
+  .img-btn, .imagine-btn { width: 32px; height: 32px; font-size: 16px; }
+  .image-preview { padding: 6px 12px 0; }
+  .image-preview img { max-height: 80px; max-width: 140px; }
+
+  /* 设置卡片 */
+  .settings-card-body { padding: 14px; }
+  .settings-card-header { padding: 12px 14px; }
+  .settings-field input, .settings-field select, .settings-field textarea {
+    font-size: 14px;
+    padding: 9px 12px;
+  }
+
+  /* 头像上传区 */
+  .avatar-upload-area { flex-direction: column; align-items: flex-start; gap: 8px; }
+
+  /* 按钮组：自动换行 */
+  .settings-card-body > div[style*="display:flex"],
+  .panel-content > div[style*="display:flex"] {
+    gap: 6px !important;
+  }
+  .settings-btn { padding: 7px 12px; font-size: 12px; }
+  .settings-btn.small { padding: 4px 8px; font-size: 11px; }
+  .summary-btn { padding: 7px 14px; font-size: 12px; }
+
+  /* 用户卡片 */
+  .user-card { padding: 12px 14px; }
+  .user-score .score { font-size: 18px; }
+
+  /* 记忆条目 */
+  .mem-item { font-size: 12.5px; }
+
+  /* 模态框和自定义对话框 */
+  .modal { padding: 20px; border-radius: 16px; width: 94%; max-height: 85vh; }
+  .custom-dialog { padding: 20px; border-radius: 16px; max-width: 94%; }
+  .custom-dialog h3 { font-size: 15px; }
+
+  /* Toast 通知 */
+  .toast-container { top: 12px; right: 12px; left: 12px; }
+  .toast { max-width: 100%; font-size: 12.5px; padding: 10px 16px; }
+
+  /* 登录遮罩 */
+  #loginOverlay input[type="password"] { width: 180px !important; }
+
+  /* 费用手动添加区域 */
+  .panel-content div[style*="display:flex"][style*="gap:8px"] {
+    flex-wrap: wrap !important;
+  }
+
+  /* 成长日志 */
+  #personalityInfo { font-size: 13px; }
+
+  /* 表格类内容横向滚动 */
+  .panel-content table { font-size: 12px; }
+  .panel-content pre { font-size: 12px; overflow-x: auto; }
+}
+
+/* ===== 极小屏幕 (iPhone SE 等) ===== */
+@media (max-width: 380px) {
+  .panel-header { padding: 12px; }
+  .panel-content { padding: 12px; }
+  .chat-messages { padding: 12px 8px; }
+  .chat-input-area { padding: 8px; }
+  .message { max-width: 92%; }
+  .msg-bubble { font-size: 13px; padding: 8px 11px; }
+  .settings-card-body { padding: 10px; }
+  .settings-btn { padding: 6px 10px; font-size: 11.5px; }
+  #loginOverlay input[type="password"] { width: 150px !important; }
 }
 
 </style>
