@@ -518,10 +518,17 @@ def evaluate_video(video_info, video_description):
 - 简介：{video_info.get('desc', '')[:100]}
 - 视频内容：{video_description}
 
-请以JSON格式给出你的真实观后感：
-{{"score": 1到10的整数评分, "comment": "一句话评论（30字以内）", "mood": "看完后的心情（开心/平静/无聊/感动/好笑/震撼/困惑 选一个）", "review": "稍微详细的感想（50字以内）", "want_follow": true或false, "recommend_owner": true或false, "recommend_reason": "推荐理由（20字以内，不推荐则留空）"}}
+请以JSON格式回复：
+{{"score": 1到10的整数评分, "comment": "你想在评论区说的话（15-30字）", "mood": "看完后的心情（开心/平静/无聊/感动/好笑/震撼/困惑 选一个）", "review": "稍微详细的感想（50字以内）", "want_follow": true或false, "recommend_owner": true或false, "recommend_reason": "推荐理由（20字以内，不推荐则留空）"}}
+
+comment要求：
+- 像B站用户真实评论，不要像写作文
+- 可以玩梗、吐槽、抖机灵
+- 对视频内容发表自己的看法或感受
+- 不要用"不过""确实"这种套话开头
+
 评分：1-3差，4-5一般，6-7不错，8-9很好，10神作。不要无脑高分。
-{_bi5['owner_name']}喜欢AI、食物、科幻、游戏、二次元。直接输出JSON不加其他内容。"""
+直接输出JSON不加其他内容。"""
 
     try:
         resp = or_client.chat.completions.create(

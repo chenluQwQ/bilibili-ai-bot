@@ -45,6 +45,14 @@ def generate_dynamic_content():
     if perm:
         perm_section = "\n【你的自我认知】\n" + "\n".join([p["text"] for p in perm[-20:]])
 
+    # 读取历史动态，避免重复
+    history_log = load_json(DYNAMIC_LOG_FILE, [])
+    history_section = ""
+    if history_log:
+        recent_dynamics = [h.get("text", "") for h in history_log[-10:] if h.get("text")]
+        if recent_dynamics:
+            history_section = "\n【最近发过的动态（不要重复类似内容）】\n" + "\n".join([f"- {d[:50]}..." if len(d) > 50 else f"- {d}" for d in recent_dynamics])
+
     now = datetime.now()
     hour = now.hour
     time_hint = ""
@@ -99,7 +107,7 @@ def generate_dynamic_content():
     custom_dynamic_prompt = _dyn_cfg.get("PROMPT_DYNAMIC", "").strip()
     if custom_dynamic_prompt:
         # 支持变量替换
-        prompt = custom_dynamic_prompt.replace("{perm_section}", perm_section).replace("{time_hint}", time_hint).replace("{topic}", topic).replace("{search_section}", search_section).replace("{bot_name}", _dyn_cfg.get("BOT_NAME", "Bot"))
+        prompt = custom_dynamic_prompt.replace("{perm_section}", perm_section).replace("{time_hint}", time_hint).replace("{topic}", topic).replace("{search_section}", search_section).replace("{history_section}", history_section).replace("{bot_name}", _dyn_cfg.get("BOT_NAME", "Bot"))
     else:
         _bi7 = {"bot_name": _dyn_cfg.get("BOT_NAME", "Bot"), "owner_name": _dyn_cfg.get("OWNER_NAME", "") or "主人"}
         # 尝试读人格
@@ -114,11 +122,12 @@ def generate_dynamic_content():
         if _persona_text:
             prompt = f"""{_persona_text}{perm_section}
 
-{time_hint}，你想发一条B站动态。主题方向：{topic}{search_section}
+{time_hint}，你想发一条B站动态。主题方向：{topic}{search_section}{history_section}
 
 风格要求：
 - 说话自然有网感，像真人发的动态
 - 结合当前时间（{time_hint}）写出真实感
+- 不要和最近发过的动态内容重复或相似
 
 请以JSON格式回复：
 {{"text": "动态文案（50-150字，自然随意）", "need_image": true或false, "image_prompt": "如果need_image为true，写一段英文图片描述用于AI生图，否则留空"}}
@@ -127,11 +136,12 @@ def generate_dynamic_content():
         else:
             prompt = f"""你是{_bi7['bot_name']}，一个有自己性格的B站UP主。说话自然有网感，有自己的态度。{perm_section}
 
-{time_hint}，你想发一条B站动态。主题方向：{topic}{search_section}
+{time_hint}，你想发一条B站动态。主题方向：{topic}{search_section}{history_section}
 
 风格要求：
 - 说话自然有网感，像真人发的动态
 - 结合当前时间（{time_hint}）写出真实感
+- 不要和最近发过的动态内容重复或相似
 
 请以JSON格式回复：
 {{"text": "动态文案（50-150字，自然随意）", "need_image": true或false, "image_prompt": "如果need_image为true，写一段英文图片描述用于AI生图，否则留空"}}
