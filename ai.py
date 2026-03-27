@@ -833,7 +833,7 @@ def maybe_evolve_personality(memory):
 请以JSON格式回复：
 {{"new_trait": "新的变化描述（没有就留空）", "trigger": "什么触发了这个变化", "speech_habits": ["当前所有说话习惯，含旧的，最多5条"], "opinions": ["当前所有看法，含旧的，最多5条"], "reflection": "一句话的睡前感想"}}"""
 
-    max_retries = 10
+    max_retries = 3
 
     for attempt in range(max_retries):
         try:
@@ -879,6 +879,9 @@ def maybe_evolve_personality(memory):
                 time.sleep(30)
             else:
                 print(f"🌱 已连续失败{max_retries}次，今日放弃")
+                # 【修复】失败也要更新日期，防止死循环重复调用API
+                evo["last_evolve"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                save_json(PERSONALITY_FILE, evo)
 
 # ========== 核心功能 ==========
 def get_new_replies():
@@ -1024,7 +1027,15 @@ def send_reply(oid, rpid, content_type, reply_text):
         "message": reply_text, "csrf": BILI_JCT
     }
     resp = requests.post(url, headers=headers, data=data)
-    return resp.json()["code"] == 0
+    result = resp.json()
+    code = result["code"]
+    if code != 0:
+        print(f"⚠️ 发送失败: code={code}, msg={result.get('message', '')}")
+    if code == -111:
+        raise SystemExit("❌ bili_jct 错误！程序停止，请检查 Cookie 后重启")
+    if code == -101:
+        raise SystemExit("❌ 未登录！SESSDATA 失效，程序停止，请更新 Cookie 后重启")
+    return code == 0
 
 def block_user(mid):
     url = "https://api.bilibili.com/x/relation/modify"
@@ -1039,21 +1050,13 @@ def run():
     global proactive_times, proactive_triggered, dynamic_time, dynamic_triggered
     print("🤖 Bot已启动，正在监听评论...")
 
-    # 启动时检查 Cookie，失效则尝试自动刷新
+    # 启动时检查 Cookie 状态
     try:
-        from config import check_bili_cookie, reload_config, refresh_bili_cookie
+        from config import check_bili_cookie
         valid, info = check_bili_cookie()
         print(f"🍪 B站Cookie: {info}")
         if not valid:
-            print("🔄 Cookie 已失效，尝试自动刷新...")
-            ok, msg = refresh_bili_cookie()
-            if ok:
-                reload_config()
-                headers["Cookie"] = f"SESSDATA={SESSDATA}; bili_jct={BILI_JCT}; DedeUserID={DEDE_USER_ID}"
-                print(f"🍪 启动时 Cookie 自动刷新成功！")
-            else:
-                print(f"⚠️ 自动刷新失败：{msg}")
-                print("⚠️ 请通过前端设置面板手动更新 Cookie，或填入 REFRESH_TOKEN")
+            print("⚠️ Cookie 已失效，请通过前端设置面板手动更新 Cookie")
     except Exception as e:
         print(f"⚠️ Cookie 检查出错：{e}")
 
@@ -1081,35 +1084,15 @@ def run():
                 except:
                     pass
 
-            # 每6小时自动检查Cookie（主动刷新，不等过期）
+            # 每6小时检查Cookie状态
             if time.time() - last_cookie_check > 21600:
                 try:
-                    from config import check_bili_cookie, refresh_bili_cookie, check_need_refresh
-                    # 先问B站：cookie是否需要刷新（在过期之前就换）
-                    need, need_msg = check_need_refresh()
-                    if need:
-                        print(f"🔄 B站提示Cookie需要刷新，主动刷新中...")
-                        ok, msg = refresh_bili_cookie()
-                        if ok:
-                            reload_config()
-                            headers["Cookie"] = f"SESSDATA={SESSDATA}; bili_jct={BILI_JCT}; DedeUserID={DEDE_USER_ID}"
-                            print(f"🍪 Cookie 主动刷新成功！")
-                        else:
-                            print(f"⚠️ Cookie 主动刷新失败：{msg}")
+                    from config import check_bili_cookie
+                    valid, info = check_bili_cookie()
+                    if not valid:
+                        print(f"⚠️ Cookie已失效（{info}），请手动更新")
                     else:
-                        # 再验证cookie是否真的还能用
-                        valid, info = check_bili_cookie()
-                        if not valid:
-                            print(f"🍪 Cookie失效（{info}），尝试自动刷新...")
-                            ok, msg = refresh_bili_cookie()
-                            if ok:
-                                reload_config()
-                                headers["Cookie"] = f"SESSDATA={SESSDATA}; bili_jct={BILI_JCT}; DedeUserID={DEDE_USER_ID}"
-                                print(f"🍪 Cookie自动刷新成功")
-                            else:
-                                print(f"⚠️ Cookie自动刷新失败：{msg}")
-                        else:
-                            print(f"🍪 Cookie 状态正常")
+                        print(f"🍪 Cookie 状态正常")
                     last_cookie_check = time.time()
                 except Exception as e:
                     print(f"⚠️ Cookie检查出错：{e}")
@@ -1277,10 +1260,14 @@ def run():
 
                 if success:
                     save_memory_record(memory, rpid, thread_id, mid, reply["username"], reply["content"], ai_reply)
-                    replied_rpids.add(rpid)
-                    save_replied(replied_rpids)
                     count += 1
                     memory = compress_user_memory(memory, mid, reply["username"])
+                else:
+                    print(f"⚠️ 回复发送失败，跳过此条，不再重试")
+
+                # 不管成功失败都标记，防止重复处理烧钱
+                replied_rpids.add(rpid)
+                save_replied(replied_rpids)
 
                 time.sleep(5)
                 if count >= MAX_REPLIES_PER_RUN:
