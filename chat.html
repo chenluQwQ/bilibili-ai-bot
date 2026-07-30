@@ -1436,9 +1436,19 @@ body::before {
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="settings-btn" onclick="checkCookie()">检查状态</button>
           <button class="settings-btn" onclick="refreshCookie()">自动刷新</button>
+          <button class="settings-btn primary" onclick="startBiliQrLogin()">扫码登录</button>
           <button class="settings-btn primary" onclick="toggleCookieEdit()">手动更新</button>
         </div>
+        <div id="biliQrArea" style="display:none;margin-top:14px;text-align:center;">
+          <img id="biliQrImage" alt="B站登录二维码" style="width:200px;height:200px;background:#fff;padding:8px;border-radius:10px;">
+          <p id="biliQrStatus" style="font-size:13px;color:var(--text-dim);margin-top:8px;">请使用哔哩哔哩 App 扫码</p>
+          <button class="settings-btn small" onclick="startBiliQrLogin()">重新获取</button>
+        </div>
         <div id="cookieEditArea" style="display:none;margin-top:12px;">
+          <div class="settings-field">
+            <label>整段 Cookie（推荐，粘贴后自动拆分）</label>
+            <textarea id="inp_COOKIE_HEADER" oninput="parseCookieHeader()" style="width:100%;min-height:70px;" placeholder="SESSDATA=...; bili_jct=...; DedeUserID=..."></textarea>
+          </div>
           <div class="settings-field">
             <label>SESSDATA</label>
             <input type="text" id="inp_SESSDATA" placeholder="从浏览器复制">
@@ -1450,6 +1460,10 @@ body::before {
           <div class="settings-field">
             <label>DedeUserID</label>
             <input type="text" id="inp_DEDE_USER_ID" placeholder="从浏览器复制">
+          </div>
+          <div class="settings-field">
+            <label>主人 B站 UID（自动拉黑保护）</label>
+            <input type="text" id="inp_OWNER_MID" placeholder="主人账号的数字 UID">
           </div>
           <div class="settings-field">
             <label>refresh_token（可选，用于自动续期）</label>
@@ -1659,6 +1673,50 @@ body::before {
       </div>
     </div>
 
+    <!-- B站私信 -->
+    <div class="settings-card">
+      <div class="settings-card-header">
+        <span class="settings-card-title">✉️ B站私信</span>
+      </div>
+      <div class="settings-card-body">
+        <p style="font-size:12px;color:var(--text-dim);margin-bottom:14px;line-height:1.6;">
+          支持纯文字和B站视频分享卡片。首次开启只建立当前位置，不回复旧私信。危险判断只分析文字，不会打开链接。陌生外链和疑似色情引流会被隔离；开启自动拉黑后直接调用 B站拉黑。
+        </p>
+        <div class="settings-field">
+          <label>自动回复范围</label>
+          <select id="pm_reply_scope">
+            <option value="all">所有安全私信</option>
+            <option value="owner">仅主人</option>
+            <option value="whitelist">主人和回复白名单</option>
+          </select>
+        </div>
+        <div class="settings-field">
+          <label>回复白名单 UID（逗号分隔）</label>
+          <input type="text" id="pm_reply_whitelist" placeholder="如：123456,789012">
+        </div>
+        <div class="settings-field">
+          <label>永不自动拉黑 UID（逗号分隔）</label>
+          <input type="text" id="pm_block_whitelist" placeholder="主人和 Bot 自己已自动保护">
+        </div>
+        <div class="settings-field">
+          <label>可信域名（逗号分隔）</label>
+          <input type="text" id="pm_trusted_domains" placeholder="bilibili.com,b23.tv">
+          <p style="font-size:11px;color:var(--text-dim);margin-top:3px;">其他域名会被视为不明链接。请只添加你确定信任的域名。</p>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <div class="settings-field" style="flex:1;min-width:140px;">
+            <label>单轮最多处理</label>
+            <input type="number" id="pm_max_per_poll" min="1" max="20" value="3">
+          </div>
+          <div class="settings-field" style="flex:1;min-width:140px;">
+            <label>消息最长保留（秒）</label>
+            <input type="number" id="pm_max_age" min="60" max="86400" value="3600">
+          </div>
+        </div>
+        <button class="settings-btn primary" onclick="savePrivateMessageSettings()">保存私信设置</button>
+      </div>
+    </div>
+
     <!-- 调度参数 -->
     <div class="settings-card">
       <div class="settings-card-header">
@@ -1757,6 +1815,10 @@ body::before {
         <div class="settings-field">
           <label>联网搜索前缀</label>
           <input type="text" id="prompt_search" placeholder="默认：请搜索并简要回答（200字以内，中文）：">
+        </div>
+        <div class="settings-field">
+          <label>私信补充提示词</label>
+          <textarea id="prompt_private_message" style="width:100%;min-height:70px;background:var(--bg-dark);border:1px solid rgba(126,200,227,0.15);border-radius:8px;color:var(--text-main);padding:8px;font-size:12px;font-family:inherit;resize:vertical;outline:none;" placeholder="可选：补充私信场景的语气或边界；当前激活人格仍然优先"></textarea>
         </div>
         <div class="settings-field">
           <label>生图 Prompt 优化提示词</label>
@@ -2847,6 +2909,14 @@ async function loadSettings() {
     document.getElementById('inp_SILICON_API_KEY').value = cfg.SILICON_API_KEY || '';
     document.getElementById('inp_EMBED_MODEL').value = cfg.EMBED_MODEL || '';
 
+    // B站私信
+    document.getElementById('pm_reply_scope').value = cfg.PRIVATE_MESSAGE_REPLY_SCOPE || 'all';
+    document.getElementById('pm_reply_whitelist').value = (cfg.PRIVATE_MESSAGE_REPLY_WHITELIST_UIDS || []).join(',');
+    document.getElementById('pm_block_whitelist').value = (cfg.PRIVATE_MESSAGE_BLOCK_WHITELIST_UIDS || []).join(',');
+    document.getElementById('pm_trusted_domains').value = (cfg.PRIVATE_MESSAGE_TRUSTED_DOMAINS || ['bilibili.com', 'b23.tv']).join(',');
+    document.getElementById('pm_max_per_poll').value = cfg.PRIVATE_MESSAGE_MAX_PER_POLL || 3;
+    document.getElementById('pm_max_age').value = cfg.PRIVATE_MESSAGE_MAX_MESSAGE_AGE || 3600;
+
     // 价格
     document.getElementById('inp_PRICE_CHAT_INPUT').value = cfg.PRICE_CHAT_INPUT || '';
     document.getElementById('inp_PRICE_CHAT_OUTPUT').value = cfg.PRICE_CHAT_OUTPUT || '';
@@ -2963,6 +3033,76 @@ async function refreshCookie() {
   }
 }
 
+let biliQrToken = '';
+let biliQrTimer = null;
+
+async function startBiliQrLogin() {
+  if (biliQrTimer) clearTimeout(biliQrTimer);
+  const area = document.getElementById('biliQrArea');
+  const status = document.getElementById('biliQrStatus');
+  area.style.display = 'block';
+  status.textContent = '正在生成二维码...';
+  try {
+    const resp = await apiFetch('/api/config/qr_login/start', {method: 'POST'});
+    const data = await resp.json();
+    if (!data.ok) throw new Error(data.msg || '获取二维码失败');
+    biliQrToken = data.token;
+    document.getElementById('biliQrImage').src = data.image;
+    status.textContent = '请使用哔哩哔哩 App 扫码并确认';
+    biliQrTimer = setTimeout(pollBiliQrLogin, 1200);
+  } catch(e) {
+    status.textContent = '获取失败：' + e.message;
+    toast('二维码获取失败', 'error');
+  }
+}
+
+async function pollBiliQrLogin() {
+  if (!biliQrToken) return;
+  const status = document.getElementById('biliQrStatus');
+  try {
+    const resp = await apiFetch('/api/config/qr_login/poll', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({token: biliQrToken})
+    });
+    const data = await resp.json();
+    if (!data.ok) throw new Error(data.msg || '查询失败');
+    status.textContent = data.message || '等待扫码';
+    if (data.status === 'confirmed') {
+      biliQrToken = '';
+      toast(data.message || 'B站登录成功', 'success', 4000);
+      checkCookie();
+      setTimeout(() => {
+        document.getElementById('biliQrArea').style.display = 'none';
+      }, 1500);
+      return;
+    }
+    if (data.status === 'expired') {
+      biliQrToken = '';
+      return;
+    }
+    biliQrTimer = setTimeout(pollBiliQrLogin, 1200);
+  } catch(e) {
+    biliQrToken = '';
+    status.textContent = '登录失败：' + e.message;
+    toast('扫码登录失败', 'error');
+  }
+}
+
+function parseCookieHeader() {
+  let raw = document.getElementById('inp_COOKIE_HEADER').value.trim();
+  raw = raw.replace(/^cookie\s*:\s*/i, '');
+  const values = {};
+  raw.split(/[;\r\n]+/).forEach(part => {
+    const index = part.indexOf('=');
+    if (index <= 0) return;
+    values[part.slice(0, index).trim()] = part.slice(index + 1).trim();
+  });
+  if (values.SESSDATA) document.getElementById('inp_SESSDATA').value = values.SESSDATA;
+  if (values.bili_jct) document.getElementById('inp_BILI_JCT').value = values.bili_jct;
+  if (values.DedeUserID) document.getElementById('inp_DEDE_USER_ID').value = values.DedeUserID;
+}
+
 function toggleCookieEdit() {
   const area = document.getElementById('cookieEditArea');
   area.style.display = area.style.display === 'none' ? 'block' : 'none';
@@ -2973,6 +3113,7 @@ function toggleCookieEdit() {
       document.getElementById('inp_SESSDATA').value = c.SESSDATA || '';
       document.getElementById('inp_BILI_JCT').value = c.BILI_JCT || '';
       document.getElementById('inp_DEDE_USER_ID').value = c.DEDE_USER_ID || '';
+      document.getElementById('inp_OWNER_MID').value = c.OWNER_MID || '';
       document.getElementById('inp_REFRESH_TOKEN').value = c.REFRESH_TOKEN || '';
     });
   }
@@ -2983,6 +3124,7 @@ async function saveCookie() {
     SESSDATA: document.getElementById('inp_SESSDATA').value.trim(),
     BILI_JCT: document.getElementById('inp_BILI_JCT').value.trim(),
     DEDE_USER_ID: document.getElementById('inp_DEDE_USER_ID').value.trim(),
+    OWNER_MID: document.getElementById('inp_OWNER_MID').value.trim(),
   };
   const rt = document.getElementById('inp_REFRESH_TOKEN').value.trim();
   if (rt) updates.REFRESH_TOKEN = rt;
@@ -3147,6 +3289,9 @@ const FEATURE_LABELS = {
   ENABLE_PERSONALITY_EVOLUTION: '性格演化',
   ENABLE_MOOD: '每日心情',
   ENABLE_AFFECTION: '好感度系统',
+  ENABLE_PRIVATE_MESSAGES: '接收 B站私信（首次开启跳过旧消息）',
+  PRIVATE_MESSAGE_AUTO_REPLY: '私信自动回复',
+  PRIVATE_MESSAGE_AUTO_BLOCK: '危险私信自动拉黑',
   PROACTIVE_LIKE: '主动点赞',
   PROACTIVE_COIN: '主动投币',
   PROACTIVE_FAV: '主动收藏',
@@ -3174,6 +3319,36 @@ async function toggleFeature(key, value) {
   try {
     await apiFetch('/api/features/update', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[key]: value})});
   } catch(e) { toast('更新失败', 'error'); }
+}
+
+function parseUidList(value) {
+  return value.split(/[,，\s]+/).map(s => s.trim()).filter(s => /^\d+$/.test(s));
+}
+
+async function savePrivateMessageSettings() {
+  const domains = document.getElementById('pm_trusted_domains').value
+    .split(/[,，\s]+/)
+    .map(s => s.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^\./, ''))
+    .filter(Boolean);
+  const updates = {
+    PRIVATE_MESSAGE_REPLY_SCOPE: document.getElementById('pm_reply_scope').value,
+    PRIVATE_MESSAGE_REPLY_WHITELIST_UIDS: parseUidList(document.getElementById('pm_reply_whitelist').value),
+    PRIVATE_MESSAGE_BLOCK_WHITELIST_UIDS: parseUidList(document.getElementById('pm_block_whitelist').value),
+    PRIVATE_MESSAGE_TRUSTED_DOMAINS: domains.length ? domains : ['bilibili.com', 'b23.tv'],
+    PRIVATE_MESSAGE_MAX_PER_POLL: Math.max(1, Math.min(20, parseInt(document.getElementById('pm_max_per_poll').value) || 3)),
+    PRIVATE_MESSAGE_MAX_MESSAGE_AGE: Math.max(60, Math.min(86400, parseInt(document.getElementById('pm_max_age').value) || 3600)),
+  };
+  try {
+    const resp = await apiFetch('/api/config/update', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(updates)
+    });
+    const data = await resp.json();
+    data.ok ? toast('私信设置已保存', 'success') : toast('保存失败', 'error');
+  } catch(e) {
+    toast('保存失败', 'error');
+  }
 }
 
 // ===== 调度参数 =====
@@ -3262,6 +3437,7 @@ async function loadPrompts() {
     document.getElementById('prompt_evolve').value = data.PROMPT_PERSONALITY_EVOLVE || '';
     document.getElementById('prompt_search').value = data.PROMPT_SEARCH_PREFIX || '';
     document.getElementById('prompt_imagine').value = data.PROMPT_IMAGINE || '';
+    document.getElementById('prompt_private_message').value = data.PROMPT_PRIVATE_MESSAGE || '';
     const topics = data.DYNAMIC_TOPICS || [];
     document.getElementById('prompt_dynamic_topics').value = Array.isArray(topics) ? topics.join('\n') : '';
   } catch(e) { console.error(e); }
@@ -3275,6 +3451,7 @@ async function savePrompts() {
     PROMPT_PERSONALITY_EVOLVE: document.getElementById('prompt_evolve').value,
     PROMPT_SEARCH_PREFIX: document.getElementById('prompt_search').value,
     PROMPT_IMAGINE: document.getElementById('prompt_imagine').value,
+    PROMPT_PRIVATE_MESSAGE: document.getElementById('prompt_private_message').value,
     DYNAMIC_TOPICS: document.getElementById('prompt_dynamic_topics').value.trim() ? document.getElementById('prompt_dynamic_topics').value.trim().split('\n').map(s => s.trim()).filter(s => s) : [],
   };
   try {

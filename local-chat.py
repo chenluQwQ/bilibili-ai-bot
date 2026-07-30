@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, send_from_directory, session
 from openai import OpenAI
+from bili_login import BiliQrLoginManager
 
 # ========== 配置 ==========
 from config import *
@@ -87,6 +88,7 @@ def web_search(query):
 
 app = Flask(__name__, template_folder=".", static_folder=".", static_url_path="")
 app.secret_key = SECRET_KEY
+bili_qr_login = BiliQrLoginManager()
 
 # ========== 登录验证 ==========
 @app.before_request
@@ -1024,6 +1026,49 @@ def api_refresh_cookie():
     return jsonify({"ok": success, "msg": msg})
 
 
+@app.route("/api/config/qr_login/start", methods=["POST"])
+def api_start_qr_login():
+    """生成B站登录二维码；Cookie 仅保存在服务端。"""
+    try:
+        result = bili_qr_login.start()
+        return jsonify({"ok": True, **result})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 502
+
+
+@app.route("/api/config/qr_login/poll", methods=["POST"])
+def api_poll_qr_login():
+    """查询扫码状态；确认后直接写入本地配置，不向前端返回 Cookie。"""
+    token = str((request.json or {}).get("token") or "")
+    if not token:
+        return jsonify({"ok": False, "msg": "缺少二维码会话"}), 400
+    try:
+        result = bili_qr_login.poll(token)
+        if result.get("status") != "confirmed":
+            return jsonify({
+                "ok": True,
+                "status": result.get("status"),
+                "message": result.get("message", ""),
+            })
+
+        from config import update_config
+
+        config_updates = result.pop("config")
+        update_config(config_updates)
+        account = result.get("account") or {}
+        return jsonify({
+            "ok": True,
+            "status": "confirmed",
+            "message": (
+                f"登录成功：{account.get('name', '未知')} "
+                f"(UID:{account.get('mid', '')}) LV{account.get('level', 0)}"
+            ),
+            "account": account,
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 502
+
+
 # ========== 人格系统 API ==========
 DEFAULT_PERSONA = {
     "name": "default",
@@ -1162,6 +1207,9 @@ def api_get_features():
         "ENABLE_PERSONALITY_EVOLUTION": cfg.get("ENABLE_PERSONALITY_EVOLUTION", True),
         "ENABLE_MOOD": cfg.get("ENABLE_MOOD", True),
         "ENABLE_AFFECTION": cfg.get("ENABLE_AFFECTION", True),
+        "ENABLE_PRIVATE_MESSAGES": cfg.get("ENABLE_PRIVATE_MESSAGES", False),
+        "PRIVATE_MESSAGE_AUTO_REPLY": cfg.get("PRIVATE_MESSAGE_AUTO_REPLY", True),
+        "PRIVATE_MESSAGE_AUTO_BLOCK": cfg.get("PRIVATE_MESSAGE_AUTO_BLOCK", True),
         "PROACTIVE_LIKE": cfg.get("PROACTIVE_LIKE", True),
         "PROACTIVE_COIN": cfg.get("PROACTIVE_COIN", False),
         "PROACTIVE_FAV": cfg.get("PROACTIVE_FAV", True),
@@ -1179,6 +1227,8 @@ def api_update_features():
     allowed = {
         "ENABLE_WEB_SEARCH", "ENABLE_PROACTIVE", "ENABLE_DYNAMIC",
         "ENABLE_PERSONALITY_EVOLUTION", "ENABLE_MOOD", "ENABLE_AFFECTION",
+        "ENABLE_PRIVATE_MESSAGES", "PRIVATE_MESSAGE_AUTO_REPLY",
+        "PRIVATE_MESSAGE_AUTO_BLOCK",
         "PROACTIVE_LIKE", "PROACTIVE_COIN", "PROACTIVE_FAV",
         "PROACTIVE_FOLLOW", "PROACTIVE_COMMENT", "DYNAMIC_ENABLED",
     }
@@ -1229,6 +1279,7 @@ def api_get_prompts():
         "PROMPT_PERSONALITY_EVOLVE": cfg.get("PROMPT_PERSONALITY_EVOLVE", ""),
         "PROMPT_SEARCH_PREFIX": cfg.get("PROMPT_SEARCH_PREFIX", ""),
         "PROMPT_IMAGINE": cfg.get("PROMPT_IMAGINE", ""),
+        "PROMPT_PRIVATE_MESSAGE": cfg.get("PROMPT_PRIVATE_MESSAGE", ""),
         "DYNAMIC_TOPICS": cfg.get("DYNAMIC_TOPICS", []),
     })
 
@@ -1239,6 +1290,7 @@ def api_update_prompts():
     allowed = {
         "PROMPT_DYNAMIC", "PROMPT_PROACTIVE_COMMENT", "PROMPT_VIDEO_EVALUATE",
         "PROMPT_PERSONALITY_EVOLVE", "PROMPT_SEARCH_PREFIX", "PROMPT_IMAGINE",
+        "PROMPT_PRIVATE_MESSAGE",
         "DYNAMIC_TOPICS",
     }
     updates = {k: v for k, v in data.items() if k in allowed}

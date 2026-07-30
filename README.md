@@ -16,6 +16,14 @@
 - 识别评论所在的**视频内容**，结合上下文回复
 - 触发关键词联网搜索，回答时事类问题
 
+### ✉️ B站私信
+- 在同一套人格、记忆、好感度和用户档案下回复新私信
+- 首次开启只建立当前位置，不处理历史私信
+- 处理纯文本和B站站内视频分享卡片；每条消息只处理一次，发送失败也不会自动重复发送
+- 可限制为仅主人、主人和白名单，或所有安全私信
+- 对不明外链、IP 链接和疑似色情引流先隔离，可直接调用 B站拉黑
+- 安全判断只解析文字，**不会访问私信里的链接**
+
 ### 🧠 记忆系统
 - 基于 **语义向量检索** 的长期记忆（BAAI/bge-m3 embedding）
 - 按对话线程和用户分别管理记忆
@@ -92,7 +100,9 @@
 
 ```
 bilibili-ai-bot/
-├── ai.py              # 主程序：评论监听、主动行为调度、记忆管理
+├── ai.py              # 主程序：评论/私信监听、主动行为调度、记忆管理
+├── private_messages.py# 私信轮询、发送、去重与安全判断
+├── bili_login.py      # B站二维码登录
 ├── Proactive.py       # 主动刷视频 + 评论模块
 ├── dynamic.py         # 动态发布模块
 ├── local-chat.py      # Flask Web 面板 + 本地聊天后端
@@ -112,7 +122,7 @@ bilibili-ai-bot/
 ### 1. 环境准备
 
 - Python 3.8+
-- 一个 B站账号的 Cookie（SESSDATA、bili_jct、DedeUserID）
+- 一个 B站账号（可在面板扫码登录，也可手动填写 Cookie）
 - 一个 AI API Key（任何兼容 OpenAI 格式的 API 均可）
 - （可选）Embedding API Key（用于记忆语义检索）
 
@@ -143,7 +153,7 @@ cp config.example.json config.json
 }
 ```
 
-> 💡 获取 Cookie：浏览器登录B站 → F12 → Application → Cookies → 复制对应值
+> 💡 推荐启动面板后，在“系统设置 → B站 Cookie”点击“扫码登录”。也可以粘贴浏览器复制出的整段 Cookie，面板会自动拆分。
 
 `OR_BASE_URL` 和模型 ID 取决于你使用的 API 提供商，填入对应的地址和模型名即可。
 
@@ -204,6 +214,22 @@ python local-chat.py
 | `ENABLE_PERSONALITY_EVOLUTION` | 性格成长 | ✅ |
 | `ENABLE_MOOD` | 心情系统 | ✅ |
 | `ENABLE_AFFECTION` | 好感度系统 | ✅ |
+| `ENABLE_PRIVATE_MESSAGES` | 接收B站新私信（首次开启跳过历史） | ❌ |
+| `PRIVATE_MESSAGE_AUTO_REPLY` | 用当前人格自动回复安全私信 | ✅ |
+| `PRIVATE_MESSAGE_AUTO_BLOCK` | 危险私信直接调用B站拉黑 | ✅ |
+
+### 私信安全
+
+| 配置 | 说明 | 默认 |
+|------|------|------|
+| `PRIVATE_MESSAGE_REPLY_SCOPE` | 回复范围：`all` / `owner` / `whitelist` | `all` |
+| `PRIVATE_MESSAGE_REPLY_WHITELIST_UIDS` | `whitelist` 模式下可回复的 UID | `[]` |
+| `PRIVATE_MESSAGE_BLOCK_WHITELIST_UIDS` | 永不自动拉黑的 UID；主人和 Bot 自己始终受保护 | `[]` |
+| `PRIVATE_MESSAGE_TRUSTED_DOMAINS` | 私信允许出现的域名及其子域名 | `bilibili.com,b23.tv` |
+| `PRIVATE_MESSAGE_MAX_MESSAGE_AGE` | 忽略超过该秒数的消息 | `3600` |
+| `PRIVATE_MESSAGE_MAX_PER_POLL` | 单轮最多处理的私信数 | `3` |
+
+> ⚠️ “自动拉黑”属于真实账号操作。私信总开关默认关闭；正式开启前请先正确填写 `OWNER_MID` 和免拉黑名单。关闭自动拉黑后，命中规则的消息仍会被隔离，不会送进 LLM，也不会回复。
 
 ### 行为控制
 
@@ -232,7 +258,7 @@ python local-chat.py
 
 B站 Cookie 会定期过期，本项目支持**全自动刷新**：
 
-1. 在面板中填入 `REFRESH_TOKEN`
+1. 在面板扫码登录（会自动保存 `REFRESH_TOKEN`），或手动填入
 2. 后台每 6 小时自动检查 Cookie 状态
 3. B站提示需要刷新时，自动用 RSA 加密完成 5 步刷新流程
 4. 新 Cookie 自动写入配置，无需人工干预
@@ -289,7 +315,7 @@ Web 面板完整适配手机浏览器：
 ## ❓ 常见问题
 
 **Q: Cookie 多久过期一次？**
-A: 一般 3-5 天。填了 `REFRESH_TOKEN` 后会自动续期，理论上可以无限续。
+A: 有效期会随账号和B站策略变化。扫码登录会同时保存 `refresh_token`；需要刷新时可在面板续期，失效后重新扫码即可。
 
 **Q: 不填 Embedding API Key 会怎样？**
 A: 记忆系统的语义检索功能不可用，但其他功能正常。
