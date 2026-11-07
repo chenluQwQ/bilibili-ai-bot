@@ -337,7 +337,7 @@ A: 检查以下几点：
 
 ## 📄 License
 
-[MIT License](LICENSE) — 随便用，随便改。
+[GNU AGPL-3.0](LICENSE) — 和 AstrBot 插件版用同一个协议。可以用、可以改；改过的版本发布出去或者拿来对外提供服务，要用同样的协议公开源码。
 
 ---
 
