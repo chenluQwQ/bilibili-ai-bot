@@ -86,7 +86,9 @@ def web_search(query):
                 pass
         return ""
 
-app = Flask(__name__, template_folder=".", static_folder=".", static_url_path="")
+# 不开静态目录：以前 static_folder="." 会把整个项目目录（config.json、data/、.git）当静态文件对外提供。
+# 页面只有 chat.html，图片走下面的 /data/images 路由。
+app = Flask(__name__, template_folder=".", static_folder=None)
 app.secret_key = SECRET_KEY
 bili_qr_login = BiliQrLoginManager()
 
@@ -98,7 +100,7 @@ def check_auth():
         return
     if request.path.startswith("/data/images/"):
         return
-    # 非html/css/js等静态资源也放行
+    # 其余非 /api/ 路径没有对应路由，直接 404
     if not request.path.startswith("/api/"):
         return
     # API 需要验证
